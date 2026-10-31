@@ -1,0 +1,281 @@
+
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FasoMarket - Boutique en ligne</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f5f5f5;color:#222}
+header{background:#087b3b;color:white;text-align:center;padding:24px}
+header h1{margin:0;font-size:30px}
+nav{background:#d92323;padding:14px;text-align:center}
+nav a{color:white;text-decoration:none;margin:10px;font-weight:bold}
+main{max-width:1100px;margin:auto;padding:18px}
+.intro,.admin{background:white;padding:22px;border-radius:12px;margin:20px 0}
+h2{color:#087b3b}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin:18px 0}
+button{border:0;padding:11px 15px;border-radius:7px;cursor:pointer}
+.filters button,.action{background:#087b3b;color:white}
+.products{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:16px}
+.product{background:white;border-radius:12px;overflow:hidden;box-shadow:0 2px 8px #0001}
+.product img{width:100%;height:190px;object-fit:cover;background:#eee}
+.info{padding:14px}
+.price{color:#d92323;font-size:20px;font-weight:bold}
+input,select,textarea{width:100%;padding:12px;margin:8px 0 14px;border:1px solid #ccc;border-radius:7px;font-size:15px}
+textarea{min-height:80px}
+.hidden{display:none}
+.delete{background:#d92323;color:white;margin:4px}
+.edit{background:#e5b900;margin:4px}
+#message{color:#087b3b;overflow-wrap:anywhere}
+footer{background:#087b3b;color:white;text-align:center;padding:20px;margin-top:35px}
+</style>
+</head>
+<body>
+
+<header>
+<h1>🇧🇫 FasoMarket</h1>
+<p>Votre boutique en ligne au Burkina Faso</p>
+</header>
+
+<nav>
+<a href="#accueil">Accueil</a>
+<a href="#boutique">Boutique</a>
+<a href="#administration">Administration</a>
+</nav>
+
+<main>
+<section class="intro" id="accueil">
+<h2>Bienvenue chez FasoMarket</h2>
+<p>Découvrez nos vêtements, chaussures et accessoires.</p>
+</section>
+
+<section id="boutique">
+<h2>Nos produits</h2>
+<div class="filters">
+<button onclick="loadProducts('Tous')">Tous</button>
+<button onclick="loadProducts('Vêtements')">Vêtements</button>
+<button onclick="loadProducts('Chaussures')">Chaussures</button>
+<button onclick="loadProducts('Accessoires')">Accessoires</button>
+</div>
+<div id="products" class="products">Chargement...</div>
+</section>
+
+<section class="admin" id="administration">
+<h2>Espace administrateur</h2>
+
+<div id="login">
+<p>Connecte-toi pour gérer ta boutique.</p>
+<input id="email" type="email" placeholder="Adresse e-mail">
+<input id="password" type="password" placeholder="Mot de passe">
+<button class="action" id="loginBtn">Se connecter</button>
+</div>
+
+<div id="dashboard" class="hidden">
+<p>Bienvenue dans ton espace administrateur.</p>
+<button class="action" id="logoutBtn">Se déconnecter</button>
+<hr>
+<h3 id="formTitle">Ajouter un produit</h3>
+<form id="productForm">
+<label>Nom du produit</label>
+<input id="name" required>
+<label>Prix en FCFA</label>
+<input id="price" type="number" min="0" required>
+<label>Catégorie</label>
+<select id="category" required>
+<option value="">Choisir une catégorie</option>
+<option>Vêtements</option>
+<option>Chaussures</option>
+<option>Accessoires</option>
+</select>
+<label>Description</label>
+<textarea id="description"></textarea>
+<label>Photo du produit</label>
+<input id="photo" type="file" accept="image/*">
+<button class="action" type="submit">Enregistrer</button>
+<button type="button" id="cancelBtn">Annuler</button>
+</form>
+<h3>Mes produits</h3>
+<div id="manage"></div>
+</div>
+<p id="message"></p>
+</section>
+</main>
+
+<footer>© 2026 FasoMarket - Burkina Faso</footer>
+
+<script>
+const SUPABASE_URL="https://mbcbyfkfbfwzhdcxvtae.supabase.co";
+const SUPABASE_KEY="sb_publishable_mrZQ_Mn-Pup9jva7FldkDg_I0qk1bw7";
+const ADMIN_ID="ed288103-5438-4568-a41c-1a2b7d35a6bf";
+const BUCKET="produits-images";
+
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let editingId=null;
+let currentFilter="Tous";
+
+function safe(v){
+ return String(v??"").replace(/[&<>"']/g,c=>({
+ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[c]));
+}
+function say(t){
+ document.getElementById("message").textContent=t;
+}
+function isAdmin(user){
+ return user && user.id===ADMIN_ID;
+}
+
+async function checkUser(){
+ const {data}=await db.auth.getSession();
+ const user=data.session?.user;
+ document.getElementById("login").classList.toggle("hidden",isAdmin(user));
+ document.getElementById("dashboard").classList.toggle("hidden",!isAdmin(user));
+ if(user && !isAdmin(user)){
+  await db.auth.signOut();
+  say("Ce compte n'est pas autorisé.");
+ }
+ if(isAdmin(user)) await loadManage();
+}
+
+async function login(){
+ const email=document.getElementById("email").value.trim();
+ const password=document.getElementById("password").value;
+ const {data,error}=await db.auth.signInWithPassword({email,password});
+ if(error){say("Erreur : "+error.message);return;}
+ if(!isAdmin(data.user)){
+  await db.auth.signOut();
+  say("Compte non autorisé.");
+  return;
+ }
+ say("Connexion réussie !");
+ await checkUser();
+}
+
+async function logout(){
+ await db.auth.signOut();
+ say("Déconnexion réussie.");
+ await checkUser();
+}
+
+async function loadProducts(category="Tous"){
+ currentFilter=category;
+ const area=document.getElementById("products");
+ area.textContent="Chargement...";
+ let request=db.from("produits").select("*").order("id",{ascending:false});
+ if(category!=="Tous") request=request.eq("categorie",category);
+ const {data,error}=await request;
+ if(error){area.textContent="Impossible de charger les produits.";return;}
+ if(!data.length){area.textContent="Aucun produit pour le moment.";return;}
+ area.innerHTML=data.map(p=>`
+ <article class="product">
+ ${p.photo?`<img src="${safe(p.photo)}" alt="${safe(p.nom)}">`:""}
+ <div class="info">
+ <h3>${safe(p.nom)}</h3>
+ <p>${safe(p.description)}</p>
+ <p>${safe(p.categorie)}</p>
+ <p class="price">${Number(p.prix).toLocaleString("fr-FR")} FCFA</p>
+ </div></article>`).join("");
+}
+
+async function loadManage(){
+ const area=document.getElementById("manage");
+ const {data,error}=await db.from("produits").select("*").order("id",{ascending:false});
+ if(error){area.textContent="Erreur de chargement.";return;}
+ if(!data.length){area.textContent="Aucun produit enregistré.";return;}
+ area.innerHTML=data.map(p=>`
+ <div style="padding:12px;border-bottom:1px solid #ddd">
+ <strong>${safe(p.nom)}</strong> — ${Number(p.prix).toLocaleString("fr-FR")} FCFA
+ <br>
+ <button class="edit" onclick="editProduct(${Number(p.id)})">Modifier</button>
+ <button class="delete" onclick="deleteProduct(${Number(p.id)})">Supprimer</button>
+ </div>`).join("");
+}
+
+function resetForm(){
+ editingId=null;
+ document.getElementById("productForm").reset();
+ document.getElementById("formTitle").textContent="Ajouter un produit";
+}
+
+async function editProduct(id){
+ const {data,error}=await db.from("produits").select("*").eq("id",id).single();
+ if(error){say(error.message);return;}
+ editingId=id;
+ document.getElementById("name").value=data.nom||"";
+ document.getElementById("price").value=data.prix||"";
+ document.getElementById("category").value=data.categorie||"";
+ document.getElementById("description").value=data.description||"";
+ document.getElementById("formTitle").textContent="Modifier le produit";
+ document.getElementById("productForm").scrollIntoView({behavior:"smooth"});
+}
+
+async function deleteProduct(id){
+ if(!confirm("Supprimer ce produit ?"))return;
+ const {error}=await db.from("produits").delete().eq("id",id);
+ if(error){say("Erreur : "+error.message);return;}
+ say("Produit supprimé.");
+ await loadProducts(currentFilter);
+ await loadManage();
+}
+
+async function saveProduct(event){
+ event.preventDefault();
+ const {data:sessionData}=await db.auth.getSession();
+ const user=sessionData.session?.user;
+ if(!isAdmin(user)){say("Connexion administrateur nécessaire.");return;}
+
+ const name=document.getElementById("name").value.trim();
+ const price=Number(document.getElementById("price").value);
+ const category=document.getElementById("category").value;
+ const description=document.getElementById("description").value.trim();
+ const file=document.getElementById("photo").files[0];
+ let photoUrl=null;
+
+ if(file){
+  if(!file.type.startsWith("image/")){say("Choisis une image.");return;}
+  if(file.size>5*1024*1024){say("Image trop volumineuse : maximum 5 Mo.");return;}
+  const ext=file.name.split(".").pop().toLowerCase().replace(/[^a-z0-9]/g,"")||"jpg";
+  const path=user.id+"/"+Date.now()+"."+ext;
+  const {error:uploadError}=await db.storage.from(BUCKET).upload(path,file,{upsert:false});
+  if(uploadError){say("Erreur photo : "+uploadError.message);return;}
+  const {data:urlData}=db.storage.from(BUCKET).getPublicUrl(path);
+  photoUrl=urlData.publicUrl;
+ }
+
+ const product={
+  nom:name,
+  prix:price,
+  categorie:category,
+  description:description
+ };
+ if(photoUrl)product.photo=photoUrl;
+
+ let result;
+ if(editingId){
+  result=await db.from("produits").update(product).eq("id",editingId);
+ }else{
+  if(!photoUrl){say("Ajoute une photo pour ce produit.");return;}
+  result=await db.from("produits").insert(product);
+ }
+ if(result.error){say("Erreur : "+result.error.message);return;}
+ say("Produit enregistré !");
+ resetForm();
+ await loadProducts(currentFilter);
+ await loadManage();
+}
+
+document.getElementById("loginBtn").addEventListener("click",login);
+document.getElementById("logoutBtn").addEventListener("click",logout);
+document.getElementById("productForm").addEventListener("submit",saveProduct);
+document.getElementById("cancelBtn").addEventListener("click",resetForm);
+
+db.auth.onAuthStateChange(()=>setTimeout(checkUser,0));
+checkUser();
+loadProducts();
+</script>
+</body>
+                                       </html>
+  
