@@ -174,13 +174,10 @@
     if(error){msg("Connexion impossible : vérifiez l'e-mail, le mot de passe et la confirmation de votre compte.","error");return;}
     show("authPanel",false);msg("Connexion réussie.","success");
   }
-  async function signup(){
-    hideMsg();
-    const email=$("email").value.trim(),password=$("password").value;
-    if(!email || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)){
+  async function 
       msg("Entrez une adresse e-mail valide.","error");$("email").focus();return;
     }
-    if(password.length<8){
+    if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){
       msg("Le mot de passe doit contenir au moins 8 caractères.","error");$("password").focus();return;
     }
     $("signupBtn").disabled=true;
