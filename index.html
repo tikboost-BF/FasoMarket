@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#16743a">
+<title>FasoMarket — Marketplace du Burkina Faso</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{--g:#16743a;--g2:#eaf5ed;--r:#c62828;--y:#f4c542;--ink:#18231c;--muted:#68736b;--line:#e3e9e4;--bg:#f7f9f7}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+header{background:linear-gradient(110deg,#a91f25,var(--g) 65%,#238c49);color:white;padding:15px max(15px,calc((100% - 1180px)/2));border-bottom:5px solid var(--y)}
+.head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap}.brand{font-weight:950;font-size:27px}.brand span{color:#ffe17a}.tag{font-size:12px}.head-actions{display:flex;gap:8px;flex-wrap:wrap}
+.wrap{max-width:1180px;margin:auto;padding:18px 15px 45px}.hero{background:white;border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:17px}
+h1{font-size:27px;margin:0 0 6px}h2{font-size:20px;margin:0 0 10px}h3{font-size:17px;margin:0 0 7px}p{margin:5px 0;color:var(--muted)}
+.searchrow{display:grid;grid-template-columns:1fr 220px auto;gap:9px;margin-top:16px}
+input,select,textarea{width:100%;padding:12px;border:1px solid #cbd6ce;border-radius:10px;background:white;font:inherit;color:var(--ink)}textarea{min-height:75px}
+label{display:block;font-size:13px;font-weight:750;margin:10px 0 5px}
+button{border:0;border-radius:10px;padding:11px 14px;background:var(--g);color:white;font-weight:750;cursor:pointer}button:disabled{opacity:.5}button.alt{background:#e8eee9;color:var(--ink)}button.red{background:var(--r)}button.gold{background:#f4c542;color:#382c05}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(205px,1fr));gap:14px}.card,.panel{background:white;border:1px solid var(--line);border-radius:15px;overflow:hidden}.card img{width:100%;height:185px;object-fit:cover;background:#edf1ed}.body{padding:13px}.price{font-size:19px;font-weight:900;color:var(--g)}.muted,.small{font-size:12px;color:var(--muted)}
+.panel{padding:16px;margin:16px 0}.bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.hidden{display:none!important}
+.notice{padding:12px;border-radius:10px;background:#fff7df;color:#604b0a;margin:10px 0;font-size:13px}.success{background:#e9f7ed;color:#14552c}.error{background:#ffeded;color:#8c1e1e}
+.pill{display:inline-block;background:var(--g2);color:var(--g);border-radius:30px;padding:4px 9px;font-size:11px;font-weight:800}
+.tabs{display:flex;gap:7px;flex-wrap:wrap}.tab{background:#e8eee9;color:var(--ink)}.tab.active{background:var(--g);color:white}
+.order{border-top:1px solid var(--line);padding:12px 0}.footer{text-align:center;color:var(--muted);font-size:12px;padding:25px}
+.statgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.stat{background:#f4f8f4;border-radius:12px;padding:13px}.stat b{font-size:20px;display:block;color:var(--g)}
+@media(max-width:620px){.searchrow{grid-template-columns:1fr}.brand{font-size:23px}.hero{padding:16px}.card img{height:160px}}
+</style></head>
+<body>
+<header><div class="head"><div><div class="brand">🇧🇫 Faso<span>Market</span></div><div class="tag">La marketplace qui rapproche vendeurs et acheteurs au Burkina Faso</div></div><div class="head-actions"><button id="accountBtn" class="alt">Connexion / Compte</button><button id="sellerRequestBtn" class="alt hidden">Devenir vendeur</button><button id="logoutBtn" class="alt hidden">Déconnexion</button><button id="cartBtn" class="gold">Panier (<span id="cartCount">0</span>)</button></div></div></header>
+<main class="wrap">
+<section class="hero"><span class="pill">ACHAT • VENTE • BURKINA FASO</span><h1>Trouvez ce que vous cherchez sur FasoMarket</h1><p>Des vendeurs locaux, des produits variés et une commande simple.</p><div class="searchrow"><input id="search" placeholder="Rechercher un produit…"><select id="category"><option value="">Toutes les catégories</option><option>Vêtements</option><option>Chaussures</option><option>Accessoires</option></select><button id="searchBtn">Rechercher</button></div></section>
+<div id="message" class="notice hidden" role="status"></div>
+<section><div class="bar"><h2>Découvrir les produits</h2><span id="productCount" class="small"></span></div><div id="products" class="grid"><p>Chargement…</p></div></section>
+<section id="authPanel" class="panel hidden"><div class="bar"><h2>Votre compte FasoMarket</h2><button class="alt" id="closeAuth">Fermer</button></div><p>Créez un compte acheteur ou connectez-vous. Un compte acheteur peut ensuite demander l'accès vendeur.</p><label>Adresse e-mail</label><input id="email" type="email" autocomplete="email" placeholder="vous@exemple.com"><label>Mot de passe (8 caractères minimum)</label><input id="password" type="password" autocomplete="new-password"><div class="row" style="margin-top:12px"><button id="signup">Créer un compte</button><button id="login" class="alt">Se connecter</button></div></section>
+<section id="cartPanel" class="panel hidden"><div class="bar"><h2>Mon panier</h2><button class="alt" id="closeCart">Fermer</button></div><div id="cartItems"></div><h3 id="cartTotal">Total : 0 FCFA</h3><div id="checkout" class="hidden"><div class="notice">Pour le moment, livraison à Ouagadougou. Le paiement est manuel et vérifié avant validation.</div><label>Téléphone</label><input id="phone" type="tel" placeholder="Votre numéro"><label>Quartier</label><input id="district" placeholder="Ex. : Tampouy"><label>Adresse et repère</label><textarea id="address" placeholder="Secteur, rue, repère…"></textarea><label>Moyen de paiement</label><select id="payment"><option>Orange Money</option><option>Wave</option></select><div class="notice success"><b>Numéro de paiement :</b><div id="paymentNumber" style="font-size:22px;font-weight:900">64455627</div><span id="paymentAmount">0 FCFA</span><p>Ne communiquez jamais votre code PIN. Conservez votre référence de transaction.</p></div><label>Référence de transaction (si déjà payé)</label><input id="paymentRef" placeholder="Référence du paiement"><button id="orderBtn" style="width:100%;margin-top:12px">Confirmer la commande</button></div><p id="cartHint" class="small">Connectez-vous pour commander.</p></section>
+<section id="sellerPanel" class="panel hidden"><div class="bar"><div><h2>Espace vendeur</h2><span class="pill">Votre boutique</span></div><button class="alt" id="refreshSeller">Actualiser</button></div><div id="sellerNotice" class="notice"></div><div id="sellerTools" class="hidden"><h3>Publier un produit</h3><label>Nom du produit</label><input id="pName" placeholder="Ex. : Sac à main"><div class="row"><div><label>Prix (FCFA)</label><input id="pPrice" type="number" min="1"></div><div><label>Stock</label><input id="pStock" type="number" min="0" value="1"></div></div><label>Catégorie</label><select id="pCategory"><option>Vêtements</option><option>Chaussures</option><option>Accessoires</option></select><label>Description</label><textarea id="pDescription" placeholder="Description du produit"></textarea><label>Photo</label><input id="pImage" type="file" accept="image/*"><button id="addProduct" style="margin-top:12px">Publier le produit</button><h3 style="margin-top:22px">Mes produits</h3><div id="myProducts"></div><h3 style="margin-top:22px">Mes commandes vendeurs</h3><div id="sellerOrders"></div><p class="small">FasoMarket prélève 5 % sur chaque commande. Le montant vendeur affiché tient compte de cette commission. Le reversement est effectué manuellement après vérification.</p></div></section>
+<section id="adminPanel" class="panel hidden"><div class="bar"><h2>Administration FasoMarket</h2><button class="alt" id="adminRefresh">Actualiser</button></div><div class="statgrid"><div class="stat"><span class="small">Commandes</span><b id="statOrders">0</b></div><div class="stat"><span class="small">Commissions calculées</span><b id="statCommission">0</b></div><div class="stat"><span class="small">Vendeurs en attente</span><b id="statSellers">0</b></div></div><h3 style="margin-top:20px">Demandes vendeurs</h3><div id="sellerRequests"></div><h3 style="margin-top:20px">Toutes les commandes</h3><div id="adminOrders"></div></section>
+</main><div class="footer">FasoMarket · Marketplace indépendante · Commission plateforme : 5 % · Paiements soumis à vérification.</div>
+<script>
+(()=> {
+const SUPABASE_URL="https://mbcbyfkfbfwzhdcxvtae.supabase.co";
+const SUPABASE_ANON_KEY="sb_publishable_mrZQ_Mn-Pup9jva7FldkDg_I0qk1bw7";
+const ADMIN_UID="ed288103-5438-4568-a41c-1a2b7d35a6bf";
+const BUCKET="Produits-images", COMMISSION=0.05;
+const PAYMENTS={"Orange Money":"64455627","Wave":"06865053"};
+const db=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+let user=null,profile=null,products=[],cart=[],isAdmin=false;
+const $=id=>document.getElementById(id);
+const money=n=>new Intl.NumberFormat("fr-FR").format(Number(n||0))+" FCFA";
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function show(id,on=true){$(id).classList.toggle("hidden",!on)}
+function message(t,type="notice"){$("message").textContent=t;$("message").className="notice "+type;window.scrollTo({top:0,behavior:"smooth"})}
+function refreshUI(){
+$("accountBtn").classList.toggle("hidden",!!user);$("logoutBtn").classList.toggle("hidden",!user);
+show("sellerPanel",!!user&&profile?.role==="vendeur");show("adminPanel",isAdmin);$("sellerRequestBtn").classList.toggle("hidden",!(user&&profile?.role==="acheteur"&&!profile?.demande_vendeur));
+$("cartHint").textContent=user?"Vous pouvez confirmer votre commande.":"Connectez-vous pour commander.";
+show("checkout",!!user&&cart.length>0);
+}
+async function loadProfile(){
+profile=null;isAdmin=!!user&&user.id===ADMIN_UID;
+if(user){const {data}=await db.from("profils").select("*").eq("id",user.id).maybeSingle();profile=data||null;
+if(isAdmin&&profile?.role!=="admin"){await db.from("profils").update({role:"admin"}).eq("id",user.id);profile={...(profile||{}),role:"admin"};}
+}
+refreshUI();if(profile?.role==="acheteur"){show("sellerPanel",false);if(profile.demande_vendeur){$("sellerRequestBtn").classList.add("hidden");}}
+if(profile?.role==="vendeur")await loadSellerData();if(isAdmin)await loadAdmin();
+}
+async function loadProducts(){
+$("products").innerHTML="<p>Chargement des produits…</p>";
+const {data,error}=await db.from("produits").select("*").order("created_at",{ascending:false});
+if(error){$("products").innerHTML='<p class="notice error">Erreur : '+esc(error.message)+"</p>";return;}
+products=data||[];renderProducts();
+}
+function renderProducts(){
+const q=$("search").value.toLowerCase().trim(),cat=$("category").value;
+const list=products.filter(p=>(!cat||p.categorie===cat)&&(!q||[p.nom,p.description,p.categorie].join(" ").toLowerCase().includes(q)));
+$("productCount").textContent=list.length+" produit(s)";
+$("products").innerHTML=list.length?list.map(p=>`<article class="card">${p.image_url?`<img src="${esc(p.image_url)}" alt="${esc(p.nom)}" loading="lazy">`:'<div style="height:185px;display:grid;place-items:center;background:#edf1ed">Photo indisponible</div>'}<div class="body"><span class="pill">${esc(p.categorie||"Article")}</span><h3 style="margin-top:8px">${esc(p.nom)}</h3><p>${esc(p.description||"")}</p><div class="price">${money(p.prix)}</div><p class="small">${Number(p.stock)>0?Number(p.stock)+" disponible(s)":"Rupture de stock"}</p><button data-add="${esc(p.id)}" ${Number(p.stock)<=0?"disabled":""}>Ajouter au panier</button></div></article>`).join(""):"<p>Aucun produit trouvé pour le moment.</p>";
+document.querySelectorAll("[data-add]").forEach(b=>b.onclick=()=>addCart(b.dataset.add));
+}
+function addCart(id){const p=products.find(x=>String(x.id)===String(id));if(!p)return;const x=cart.find(i=>String(i.id)===String(id));if(x){if(x.quantity>=Number(p.stock)){message("Stock insuffisant.");return;}x.quantity++;}else cart.push({id:p.id,nom:p.nom,prix:Number(p.prix),quantity:1});renderCart();message("Produit ajouté au panier.","success");}
+function renderCart(){
+$("cartCount").textContent=cart.reduce((s,x)=>s+x.quantity,0);
+$("cartItems").innerHTML=cart.length?cart.map(x=>`<div class="order row"><div><b>${esc(x.nom)}</b><div class="small">${money(x.prix)} × ${x.quantity}</div></div><div class="row" style="flex:0 0 auto"><button class="alt" data-dec="${esc(x.id)}">−</button><button class="alt" data-inc="${esc(x.id)}">+</button><button class="red" data-del="${esc(x.id)}">×</button></div></div>`).join(""):"<p>Panier vide.</p>";
+const total=cart.reduce((s,x)=>s+x.prix*x.quantity,0);$("cartTotal").textContent="Total : "+money(total);$("paymentAmount").textContent="Montant : "+money(total);
+show("checkout",!!user&&cart.length>0);
+document.querySelectorAll("[data-dec]").forEach(b=>b.onclick=()=>qty(b.dataset.dec,-1));document.querySelectorAll("[data-inc]").forEach(b=>b.onclick=()=>qty(b.dataset.inc,1));document.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{cart=cart.filter(x=>String(x.id)!==b.dataset.del);renderCart();});
+}
+function qty(id,d){const x=cart.find(i=>String(i.id)===String(id)),p=products.find(i=>String(i.id)===String(id));if(!x||!p)return;x.quantity=Math.max(1,Math.min(Number(p.stock),x.quantity+d));renderCart();}
+async function signup(){const email=$("email").value.trim(),password=$("password").value;if(!email||password.length<8){message("Saisissez un e-mail valide et un mot de passe de 8 caractères minimum.","error");return;}const {data,error}=await db.auth.signUp({email,password,options:{emailRedirectTo:location.origin+location.pathname}});if(error){message(error.message,"error");return;}message(data.session?"Compte créé et connecté.":"Compte créé. Confirmez votre adresse e-mail depuis votre boîte de réception.","success");if(data.session){user=data.session.user;await loadProfile();show("authPanel",false);}}
+async function login(){const {data,error}=await db.auth.signInWithPassword({email:$("email").value.trim(),password:$("password").value});if(error){message("Connexion impossible : "+error.message,"error");return;}user=data.user;await loadProfile();show("authPanel",false);message("Connexion réussie.","success");}
+async function logout(){await db.auth.signOut();user=null;profile=null;isAdmin=false;cart=[];renderCart();refreshUI();message("Déconnexion réussie.","success");}
+async function requestSeller(){if(!user){show("authPanel");return;}const {error}=await db.from("profils").update({demande_vendeur:true}).eq("id",user.id);if(error){message("Demande impossible : "+error.message,"error");return;}await loadProfile();message("Demande envoyée. Elle sera examinée par l'administrateur.","success");}
+async function addProduct(){
+if(profile?.role!=="vendeur"&&!isAdmin){message("Votre compte vendeur n'est pas encore approuvé.","error");return;}
+const nom=$("pName").value.trim(),prix=Number($("pPrice").value),stock=Number($("pStock").value),file=$("pImage").files[0],description=$("pDescription").value.trim(),categorie=$("pCategory").value;
+if(!nom||!Number.isFinite(prix)||prix<=0||!Number.isInteger(stock)||stock<0||!file){message("Complétez le nom, le prix, le stock et la photo.","error");return;}
+const ext=(file.name.split(".").pop()||"jpg").replace(/[^a-z0-9]/gi,"").toLowerCase()||"jpg",path=user.id+"/"+Date.now()+"-"+crypto.randomUUID()+"."+ext;
+const {error:upErr}=await db.storage.from(BUCKET).upload(path,file,{contentType:file.type||"image/jpeg"});
+if(upErr){message("Envoi photo impossible : "+upErr.message,"error");return;}
+const {data:url}=db.storage.from(BUCKET).getPublicUrl(path);
+const {error}=await db.from("produits").insert({nom,prix,stock,description,categorie,image_url:url.publicUrl,user_id:user.id});
+if(error){message("Enregistrement impossible : "+error.message,"error");return;}
+$("pName").value=$("pPrice").value=$("pDescription").value=$("pImage").value="";$("pStock").value=1;await loadProducts();await loadSellerData();message("Produit publié.","success");
+}
+async function loadSellerData(){
+if(!user)return;
+const {data:mine}=await db.from("produits").select("*").eq("user_id",user.id).order("created_at",{ascending:false});
+$("myProducts").innerHTML=(mine||[]).length?mine.map(p=>`<div class="order"><b>${esc(p.nom)}</b> · ${money(p.prix)} · Stock : ${p.stock}<button class="red" data-mydelete="${esc(p.id)}">Supprimer</button></div>`).join(""):"<p>Aucun produit publié.</p>";
+document.querySelectorAll("[data-mydelete]").forEach(b=>b.onclick=async()=>{if(!confirm("Supprimer ce produit ?"))return;const {error}=await db.from("produits").delete().eq("id",b.dataset.mydelete);if(error)message(error.message,"error");else{await loadProducts();await loadSellerData();}});
+const {data:orders,error}=await db.from("commandes").select("*").eq("vendeur_id",user.id).order("created_at",{ascending:false});
+$("sellerOrders").innerHTML=error?'<p class="small">'+esc(error.message)+'</p>':(orders||[]).length?orders.map(o=>`<div class="order"><b>Commande #${esc(o.id)}</b><p>${money(o.total)} · ${esc(o.statut)}</p><p>Commission FasoMarket (5 %) : ${money(o.commission)}</p><p>Montant vendeur : <b>${money(o.montant_vendeur)}</b></p><p class="small">${esc(o.telephone)} · ${esc(o.quartier)}</p></div>`).join(""):"<p>Aucune commande reçue.</p>";
+}
+async function placeOrder(){
+if(!user){show("authPanel");message("Connectez-vous pour commander.");return;}
+const phone=$("phone").value.trim(),district=$("district").value.trim(),address=$("address").value.trim();
+if(!cart.length||!phone||!district||!address){message("Complétez le panier et les informations de livraison.","error");return;}
+const items=cart.map(x=>({produit_id:String(x.id),quantite:x.quantity}));
+const {data,error}=await db.rpc("creer_commandes_market",{p_articles:items,p_telephone:phone,p_quartier:district,p_adresse:address,p_moyen_paiement:$("payment").value,p_reference_paiement:$("paymentRef").value.trim()});
+if(error){message("Commande non enregistrée : "+error.message,"error");return;}
+cart=[];renderCart();show("cartPanel",false);await loadProducts();message("Commande enregistrée ! Le paiement et la livraison seront vérifiés. Chaque vendeur recevra sa commande séparément.","success");
+}
+async function loadAdmin(){
+const {data:orders,error}=await db.from("commandes").select("*").order("created_at",{ascending:false});
+if(error){$("adminOrders").textContent=error.message;return;}
+const list=orders||[];$("statOrders").textContent=list.length;$("statCommission").textContent=money(list.reduce((s,o)=>s+Number(o.commission||0),0));
+const {data:requests}=await db.from("profils").select("*").eq("demande_vendeur",true);$("statSellers").textContent=(requests||[]).length;
+$("sellerRequests").innerHTML=(requests||[]).length?(requests||[]).map(p=>`<div class="order"><b>${esc(p.nom||p.id)}</b><p class="small">${esc(p.id)}</p><button data-approve="${esc(p.id)}">Approuver vendeur</button></div>`).join(""):"<p>Aucune demande en attente.</p>";
+document.querySelectorAll("[data-approve]").forEach(b=>b.onclick=async()=>{const {error}=await db.from("profils").update({role:"vendeur",demande_vendeur:false}).eq("id",b.dataset.approve);if(error)message("Approbation impossible : "+error.message,"error");else{message("Vendeur approuvé.","success");await loadAdmin();}});
+$("adminOrders").innerHTML=list.length?list.map(o=>`<div class="order"><b>Commande #${esc(o.id)}</b><p>${money(o.total)} · Commission : ${money(o.commission)} · Vendeur : ${money(o.montant_vendeur)}</p><p>${esc(o.telephone)} · ${esc(o.quartier)} · ${esc(o.moyen_paiement)} · ${esc(o.reference_paiement||"Référence non fournie")}</p><p class="small">Vendeur : ${esc(o.vendeur_id||"Non attribué")} · Acheteur : ${esc(o.user_id)}</p><p>Statut : ${esc(o.statut)}</p></div>`).join(""):"<p>Aucune commande pour le moment.</p>";
+}
+$("accountBtn").onclick=()=>show("authPanel");$("sellerRequestBtn").onclick=requestSeller;$("closeAuth").onclick=()=>show("authPanel",false);$("signup").onclick=signup;$("login").onclick=login;$("logoutBtn").onclick=logout;
+$("cartBtn").onclick=()=>{show("cartPanel");renderCart();};$("closeCart").onclick=()=>show("cartPanel",false);$("orderBtn").onclick=placeOrder;
+$("payment").onchange=()=>$("paymentNumber").textContent=PAYMENTS[$("payment").value];
+$("search").oninput=renderProducts;$("category").onchange=renderProducts;$("searchBtn").onclick=renderProducts;
+$("addProduct").onclick=addProduct;$("refreshSeller").onclick=loadSellerData;$("adminRefresh").onclick=loadAdmin;
+db.auth.getSession().then(async({data})=>{user=data.session?.user||null;await loadProfile();});
+db.auth.onAuthStateChange((_event,session)=>{user=session?.user||null;setTimeout(loadProfile,0);});
+loadProducts();renderCart();
+})();
+</script></body></html>
